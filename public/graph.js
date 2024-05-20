@@ -1,11 +1,11 @@
 const height = 800;
-const width = 600;
+const width = 800;
+
 
 /*
  * Input file generated with
  * zk graph --format json > data/notes2.json
  */
-
 d3.json("graph.json").then((json) => {
 
   // Create list of existing paths/IDs

@@ -1,5 +1,5 @@
 // Configuration object for graph settings
-const CONFIG = {
+const defaultConfig = {
   dimensions: {
     width: 1200,
     height: 1200,
@@ -114,19 +114,19 @@ class GraphVisualizer {
           // Normalize connections to get a value between 0 and 1
           const connectionStrength = d.connections / maxConnections;
           // More connections = stronger pull to center
-          return CONFIG.forces.centerForce * (1 + connectionStrength);
+          return defaultConfig.forces.centerForce * (1 + connectionStrength);
         }),
       )
       .force(
         "y",
         d3.forceY().strength((d) => {
           const connectionStrength = d.connections / maxConnections;
-          return CONFIG.forces.centerForce * (1 + connectionStrength);
+          return defaultConfig.forces.centerForce * (1 + connectionStrength);
         }),
       )
 
       // Repel force - pushes nodes away from each other
-      .force("charge", d3.forceManyBody().strength(CONFIG.forces.repelForce))
+      .force("charge", d3.forceManyBody().strength(defaultConfig.forces.repelForce))
 
       // Link force - maintains connections between nodes
       .force(
@@ -134,8 +134,8 @@ class GraphVisualizer {
         d3
           .forceLink(data.links)
           .id((d) => d.path)
-          .strength(CONFIG.forces.linkForce)
-          .distance(CONFIG.forces.linkDistance),
+          .strength(defaultConfig.forces.linkForce)
+          .distance(defaultConfig.forces.linkDistance),
       );
 
     // These x and y forces are now handled in the center force above
@@ -160,7 +160,7 @@ class GraphVisualizer {
   }
 
   createSvgContainer() {
-    const { width, height } = CONFIG.dimensions;
+    const { width, height } = defaultConfig.dimensions;
     this.svg = d3
       .select(`#${this.containerId}`)
       .append("svg")
@@ -170,14 +170,14 @@ class GraphVisualizer {
   setupZoom() {
     const zoom = d3
       .zoom()
-      .scaleExtent([CONFIG.zoom.min, CONFIG.zoom.max])
+      .scaleExtent([defaultConfig.zoom.min, defaultConfig.zoom.max])
       .on("zoom", (event) => {
         this.zoomGroup.attr("transform", event.transform);
       });
 
     this.svg
       .call(zoom)
-      .call(zoom.transform, d3.zoomIdentity.scale(CONFIG.zoom.defaultScale));
+      .call(zoom.transform, d3.zoomIdentity.scale(defaultConfig.zoom.defaultScale));
   }
 
   createLinks(links) {
@@ -187,8 +187,8 @@ class GraphVisualizer {
       .selectAll("line")
       .data(links)
       .join("line")
-      .attr("stroke", CONFIG.link.stroke)
-      .attr("stroke-opacity", CONFIG.link.opacity)
+      .attr("stroke", defaultConfig.link.stroke)
+      .attr("stroke-opacity", defaultConfig.link.opacity)
       .attr("stroke-width", 1);
   }
 
@@ -206,9 +206,9 @@ class GraphVisualizer {
       .attr(
         "r",
         (d) =>
-          CONFIG.node.baseRadius + d.connections * CONFIG.node.radiusMultiplier,
+          defaultConfig.node.baseRadius + d.connections * defaultConfig.node.radiusMultiplier,
       )
-      .attr("fill", CONFIG.node.fill);
+      .attr("fill", defaultConfig.node.fill);
 
     // Add labels to nodes with updated positioning and color
     container
@@ -216,13 +216,13 @@ class GraphVisualizer {
       .attr(
         "dy",
         (d) =>
-          CONFIG.node.baseRadius +
-          d.connections * CONFIG.node.radiusMultiplier +
-          CONFIG.node.textYOffset,
+          defaultConfig.node.baseRadius +
+          d.connections * defaultConfig.node.radiusMultiplier +
+          defaultConfig.node.textYOffset,
       )
       .attr("text-anchor", "middle") // Center the text below the node
-      .style("fill", CONFIG.node.textColor) // Set text color
-      .style("font-size", CONFIG.node.fontSize)
+      .style("fill", defaultConfig.node.textColor) // Set text color
+      .style("font-size", defaultConfig.node.fontSize)
       .style("opacity", 0)
       .text((d) => d.title);
 
@@ -297,21 +297,21 @@ class GraphVisualizer {
         // Dim all nodes initially
         this.zoomGroup
           .selectAll(".nodes g")
-          .style("transition", `opacity ${CONFIG.node.transitionDuration}ms`)
-          .style("opacity", CONFIG.node.dimOpacity)
+          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style("opacity", defaultConfig.node.dimOpacity)
           .select("circle")
-          .style("transition", `fill ${CONFIG.node.transitionDuration}ms`)
-          .style("fill", CONFIG.node.fill);
+          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
+          .style("fill", defaultConfig.node.fill);
 
         // Highlight connected nodes
         this.zoomGroup
           .selectAll(".nodes g")
           .filter((n) => n.path === d.path || connectedNodes.has(n.path))
-          .style("transition", `opacity ${CONFIG.node.transitionDuration}ms`)
-          .style("opacity", CONFIG.node.highlightOpacity)
+          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style("opacity", defaultConfig.node.highlightOpacity)
           .select("circle")
-          .style("transition", `fill ${CONFIG.node.transitionDuration}ms`)
-          .style("fill", CONFIG.node.highlightFill);
+          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
+          .style("fill", defaultConfig.node.highlightFill);
 
         // Show text for hovered node only
         d3.select(event.currentTarget)
@@ -321,17 +321,17 @@ class GraphVisualizer {
           //   `opacity ${CONFIG.node.transitionDuration}ms, font-size ${CONFIG.node.transitionDuration}ms`,
           // )
           .style("opacity", 1)
-          .style("font-size", CONFIG.node.hoverFontSize);
+          .style("font-size", defaultConfig.node.hoverFontSize);
 
         // Dim all links
         this.zoomGroup
           .selectAll(".links line")
           .style(
             "transition",
-            `opacity ${CONFIG.link.transitionDuration}ms, stroke ${CONFIG.link.transitionDuration}ms, stroke-width ${CONFIG.link.transitionDuration}ms`,
+            `opacity ${defaultConfig.link.transitionDuration}ms, stroke ${defaultConfig.link.transitionDuration}ms, stroke-width ${defaultConfig.link.transitionDuration}ms`,
           )
-          .style("opacity", CONFIG.link.dimOpacity)
-          .style("stroke", CONFIG.link.stroke)
+          .style("opacity", defaultConfig.link.dimOpacity)
+          .style("stroke", defaultConfig.link.stroke)
           .style("stroke-width", 1);
 
         // Highlight connected links
@@ -340,10 +340,10 @@ class GraphVisualizer {
           .filter((l) => connectedLinks.has(l))
           .style(
             "transition",
-            `opacity ${CONFIG.link.transitionDuration}ms, stroke ${CONFIG.link.transitionDuration}ms, stroke-width ${CONFIG.link.transitionDuration}ms`,
+            `opacity ${defaultConfig.link.transitionDuration}ms, stroke ${defaultConfig.link.transitionDuration}ms, stroke-width ${defaultConfig.link.transitionDuration}ms`,
           )
-          .style("opacity", CONFIG.link.highlightOpacity)
-          .style("stroke", CONFIG.link.highlightStroke)
+          .style("opacity", defaultConfig.link.highlightOpacity)
+          .style("stroke", defaultConfig.link.highlightStroke)
           .style("stroke-width", 2);
       })
       .on("mouseout", (event) => {
@@ -352,11 +352,11 @@ class GraphVisualizer {
         // Reset all nodes
         this.zoomGroup
           .selectAll(".nodes g")
-          .style("transition", `opacity ${CONFIG.node.transitionDuration}ms`)
-          .style("opacity", CONFIG.node.highlightOpacity)
+          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style("opacity", defaultConfig.node.highlightOpacity)
           .select("circle")
-          .style("transition", `fill ${CONFIG.node.transitionDuration}ms`)
-          .style("fill", CONFIG.node.fill);
+          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
+          .style("fill", defaultConfig.node.fill);
 
         // Hide all text
         this.zoomGroup
@@ -366,17 +366,17 @@ class GraphVisualizer {
           //   `opacity ${CONFIG.node.transitionDuration}ms, font-size ${CONFIG.node.transitionDuration}ms`,
           // )
           .style("opacity", 0)
-          .style("font-size", CONFIG.node.fontSize);
+          .style("font-size", defaultConfig.node.fontSize);
 
         // Reset all links
         this.zoomGroup
           .selectAll(".links line")
           .style(
             "transition",
-            `opacity ${CONFIG.link.transitionDuration}ms, stroke ${CONFIG.link.transitionDuration}ms, stroke-width ${CONFIG.link.transitionDuration}ms`,
+            `opacity ${defaultConfig.link.transitionDuration}ms, stroke ${defaultConfig.link.transitionDuration}ms, stroke-width ${defaultConfig.link.transitionDuration}ms`,
           )
-          .style("opacity", CONFIG.link.opacity)
-          .style("stroke", CONFIG.link.stroke)
+          .style("opacity", defaultConfig.link.opacity)
+          .style("stroke", defaultConfig.link.stroke)
           .style("stroke-width", 1);
       })
       .on("click", this.handleNodeClick);
@@ -402,6 +402,227 @@ class GraphVisualizer {
   }
 }
 
-// Usage
-const graph = new GraphVisualizer("graphcontainer");
-graph.initialize("graph.json");
+const ConfigSlider = ({ label, value, onChange, min, max, step }) => (
+  React.createElement("div", { className: "mb-4" },
+    React.createElement("label", { className: "block text-sm font-medium mb-2" },
+      `${label}: ${value}`
+    ),
+    React.createElement("input", {
+      type: "range",
+      min: min,
+      max: max,
+      step: step,
+      value: value,
+      onChange: e => onChange(parseFloat(e.target.value)),
+      className: "w-full"
+    })
+  )
+);
+
+const InteractiveGraph = () => {
+  // Load config from localStorage or use default
+  const loadConfig = () => {
+    const savedConfig = localStorage.getItem('graphConfig');
+    return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
+  };
+
+  const [config, setConfig] = React.useState(loadConfig());
+  const [graph, setGraph] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!graph) {
+      const newGraph = new GraphVisualizer("graphcontainer");
+      setGraph(newGraph);
+      newGraph.initialize("graph.json");
+    }
+  }, []);
+
+  const updateConfig = (category, param, value) => {
+    const newConfig = {
+      ...config,
+      [category]: {
+        ...config[category],
+        [param]: value
+      }
+    };
+    setConfig(newConfig);
+
+    // Save to localStorage
+    localStorage.setItem('graphConfig', JSON.stringify(newConfig));
+
+    if (graph) {
+      graph.simulation
+        .force("charge")
+        .strength(newConfig.forces.repelForce);
+
+      graph.simulation
+        .force("link")
+        .strength(newConfig.forces.linkForce)
+        .distance(newConfig.forces.linkDistance);
+
+      const maxConnections = Math.max(
+        ...graph.simulation.nodes().map(node => node.connections)
+      );
+
+      graph.simulation
+        .force("x")
+        .strength(d => {
+          const connectionStrength = d.connections / maxConnections;
+          return newConfig.forces.centerForce * (1 + connectionStrength);
+        });
+
+      graph.simulation
+        .force("y")
+        .strength(d => {
+          const connectionStrength = d.connections / maxConnections;
+          return newConfig.forces.centerForce * (1 + connectionStrength);
+        });
+
+      graph.simulation.alpha(0.3).restart();
+
+      graph.zoomGroup
+        .selectAll(".nodes circle")
+        .attr("r", d =>
+          newConfig.node.baseRadius + d.connections * newConfig.node.radiusMultiplier
+        );
+    }
+  };
+
+  // Add reset button handler
+  const resetConfig = () => {
+    localStorage.removeItem('graphConfig');
+    setConfig(defaultConfig);
+    if (graph) {
+      // Apply default config to graph
+      updateConfig('forces', 'repelForce', defaultConfig.forces.repelForce);
+      updateConfig('forces', 'linkForce', defaultConfig.forces.linkForce);
+      updateConfig('forces', 'centerForce', defaultConfig.forces.centerForce);
+      updateConfig('forces', 'linkDistance', defaultConfig.forces.linkDistance);
+      updateConfig('node', 'baseRadius', defaultConfig.node.baseRadius);
+      updateConfig('node', 'radiusMultiplier', defaultConfig.node.radiusMultiplier);
+    }
+  };
+
+  // Create a container div that will hold both the graph and controls
+  return React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      display: 'flex'
+    }
+  },
+    // Graph container
+    React.createElement("div", {
+      id: "graphcontainer",
+      style: {
+        flex: '1',
+        position: 'relative'
+      }
+    }),
+    // Controls panel
+    React.createElement("div", {
+      style: {
+        width: '300px',
+        padding: '20px',
+        backgroundColor: 'white',
+        boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
+        overflowY: 'auto'
+      }
+    },
+      React.createElement("div", {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '1em'
+        }
+      },
+        React.createElement("h2", {
+          style: {
+            fontSize: '1.2em',
+            fontWeight: 'bold',
+            margin: 0
+          }
+        }, "Graph Controls"),
+        React.createElement("button", {
+          onClick: resetConfig,
+          style: {
+            padding: '5px 10px',
+            backgroundColor: '#f0f0f0',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }
+        }, "Reset")
+      ),
+      React.createElement("div", null,
+        React.createElement("h3", { style: { fontSize: '1.1em', fontWeight: '500', marginTop: '1em' } }, "Node Settings"),
+        React.createElement(ConfigSlider, {
+          label: "Base Radius",
+          value: config.node.baseRadius,
+          onChange: v => updateConfig('node', 'baseRadius', v),
+          min: 1,
+          max: 20,
+          step: 0.5
+        }),
+        React.createElement(ConfigSlider, {
+          label: "Radius Multiplier",
+          value: config.node.radiusMultiplier,
+          onChange: v => updateConfig('node', 'radiusMultiplier', v),
+          min: 0,
+          max: 2,
+          step: 0.1
+        })
+      ),
+      React.createElement("div", null,
+        React.createElement("h3", { style: { fontSize: '1.1em', fontWeight: '500', marginTop: '1em' } }, "Force Settings"),
+        React.createElement(ConfigSlider, {
+          label: "Center Force",
+          value: config.forces.centerForce,
+          onChange: v => updateConfig('forces', 'centerForce', v),
+          min: 0,
+          max: 1,
+          step: 0.05
+        }),
+        React.createElement(ConfigSlider, {
+          label: "Repel Force",
+          value: config.forces.repelForce,
+          onChange: v => updateConfig('forces', 'repelForce', v),
+          min: -1000,
+          max: 0,
+          step: 10
+        }),
+        React.createElement(ConfigSlider, {
+          label: "Link Force",
+          value: config.forces.linkForce,
+          onChange: v => updateConfig('forces', 'linkForce', v),
+          min: 0,
+          max: 1,
+          step: 0.05
+        }),
+        React.createElement(ConfigSlider, {
+          label: "Link Distance",
+          value: config.forces.linkDistance,
+          onChange: v => updateConfig('forces', 'linkDistance', v),
+          min: 10,
+          max: 200,
+          step: 5
+        })
+      )
+    )
+  );
+};
+
+// Create a container for the app if it doesn't exist
+if (!document.getElementById('app')) {
+  const appDiv = document.createElement('div');
+  appDiv.id = 'app';
+  document.body.appendChild(appDiv);
+}
+
+// Render the component
+const root = ReactDOM.createRoot(document.getElementById('app'));
+root.render(React.createElement(InteractiveGraph));

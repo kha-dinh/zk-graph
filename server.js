@@ -24,6 +24,7 @@ function puts(error, stdout, stderr) {
 // zk graph --format json >.graph.json
 function generate_graph() {
   exec(`zk graph --format json -W ${workdir} > public/graph.json`, puts);
+  exec(`zk tag list --format json -W ${workdir} > public/tags.json`, puts);
   if (client) {
     sendRefresh();
   }

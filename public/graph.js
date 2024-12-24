@@ -8,6 +8,7 @@ const defaultConfig = {
     baseRadius: 7,
     radiusMultiplier: 0.5,
     fill: "#1f77b4",
+    tagFill: "#cc77cc",
     highlightFill: "#ff6b6b", // Highlight color for nodes
     fontSize: 0,
     hoverFontSize: 25,
@@ -49,43 +50,18 @@ class GraphVisualizer {
     this.links = null;
   }
 
-  async initialize(dataUrl) {
+  async initialize(dataUrl, tagsUrl) {
     try {
       const graphData = await d3.json(dataUrl);
-      const processedData = this.processGraphData(graphData);
+      const tags = await d3.json("tags.json");
+
+      const processedData = this.processGraphData(graphData, tags);
       this.setupSimulation(processedData);
       this.createVisualization(processedData);
       this.setupZoom();
     } catch (error) {
       console.error("Failed to initialize graph:", error);
     }
-  }
-
-  processGraphData(rawData) {
-    const validPaths = rawData.notes.map((note) => note.path);
-
-    const links = rawData.links
-      .filter(
-        (edge) =>
-          validPaths.includes(edge.targetPath) &&
-          validPaths.includes(edge.sourcePath),
-      )
-      .map((edge) => ({
-        source: edge.sourcePath,
-        target: edge.targetPath,
-      }));
-
-    const connectionCounts = this.calculateConnectionCounts(
-      rawData.notes,
-      links,
-    );
-
-    const nodes = rawData.notes.map((note) => ({
-      ...note,
-      connections: connectionCounts[note.path] || 0,
-    }));
-
-    return { nodes, links };
   }
 
   calculateConnectionCounts(nodes, links) {
@@ -97,6 +73,66 @@ class GraphVisualizer {
     });
 
     return counts;
+  }
+
+  processGraphData(rawData, tags) {
+    const validPaths = rawData.notes.map((note) => note.path);
+    const links = rawData.links
+      .filter(
+        (edge) =>
+          validPaths.includes(edge.targetPath) &&
+          validPaths.includes(edge.sourcePath),
+      )
+      .map((edge) => ({
+        // We link nodes base on their "path"
+        source: edge.sourcePath,
+        target: edge.targetPath,
+      }));
+
+    const connectionCounts = this.calculateConnectionCounts(
+      rawData.notes,
+      links,
+    );
+
+    const nodes = rawData.notes.map((note) => ({
+      ...note,
+      type: "note",
+      connections: connectionCounts[note.path] || 0,
+      active: defaultConfig.node.highlightFill,
+      inactive: defaultConfig.node.fill,
+    }));
+
+    tags.map((tag) => {
+      const tagLinks = rawData.notes.filter((note) =>
+        note.tags.includes(tag.name),
+      );
+
+      // NOTE: We link nodes base on their path
+      const tagNode = {
+        title: tag.name,
+        connections: tagLinks.length,
+        type: "tag",
+        id: 999,
+        path: tag.name,
+        active: defaultConfig.node.highlightFill,
+        inactive: defaultConfig.node.tagFill,
+      };
+      nodes.push(tagNode);
+      tagLinks.map((note) => {
+        // console.log(note);
+        links.push({
+          source: tagNode.path,
+          target: note.path,
+        });
+      });
+    });
+
+    // console.log(rawData.links);
+    // console.log(links);
+    // console.log(nodes);
+    // console.log(tags);
+
+    return { nodes, links };
   }
 
   setupSimulation(data) {
@@ -126,7 +162,10 @@ class GraphVisualizer {
       )
 
       // Repel force - pushes nodes away from each other
-      .force("charge", d3.forceManyBody().strength(defaultConfig.forces.repelForce))
+      .force(
+        "charge",
+        d3.forceManyBody().strength(defaultConfig.forces.repelForce),
+      )
 
       // Link force - maintains connections between nodes
       .force(
@@ -177,7 +216,10 @@ class GraphVisualizer {
 
     this.svg
       .call(zoom)
-      .call(zoom.transform, d3.zoomIdentity.scale(defaultConfig.zoom.defaultScale));
+      .call(
+        zoom.transform,
+        d3.zoomIdentity.scale(defaultConfig.zoom.defaultScale),
+      );
   }
 
   createLinks(links) {
@@ -189,7 +231,7 @@ class GraphVisualizer {
       .join("line")
       .attr("stroke", defaultConfig.link.stroke)
       .attr("stroke-opacity", defaultConfig.link.opacity)
-      .attr("stroke-width", 1);
+      .attr("stroke-width", 2);
   }
 
   createNodeGroups(nodes) {
@@ -202,13 +244,26 @@ class GraphVisualizer {
 
     // Add circles to nodes
     container
+      .filter((d) => d.type == "note")
       .append("circle")
       .attr(
         "r",
         (d) =>
-          defaultConfig.node.baseRadius + d.connections * defaultConfig.node.radiusMultiplier,
+          defaultConfig.node.baseRadius +
+          d.connections * defaultConfig.node.radiusMultiplier,
       )
       .attr("fill", defaultConfig.node.fill);
+
+    container
+      .filter((d) => d.type == "tag")
+      .append("circle")
+      .attr(
+        "r",
+        (d) =>
+          defaultConfig.node.baseRadius +
+          d.connections * defaultConfig.node.radiusMultiplier,
+      )
+      .attr("fill", defaultConfig.node.tagFill);
 
     // Add labels to nodes with updated positioning and color
     container
@@ -297,21 +352,33 @@ class GraphVisualizer {
         // Dim all nodes initially
         this.zoomGroup
           .selectAll(".nodes g")
-          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style(
+            "transition",
+            `opacity ${defaultConfig.node.transitionDuration}ms`,
+          )
           .style("opacity", defaultConfig.node.dimOpacity)
           .select("circle")
-          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
-          .style("fill", defaultConfig.node.fill);
+          .style(
+            "transition",
+            `fill ${defaultConfig.node.transitionDuration}ms`,
+          );
+        // .style("fill", d.active);
 
         // Highlight connected nodes
         this.zoomGroup
           .selectAll(".nodes g")
           .filter((n) => n.path === d.path || connectedNodes.has(n.path))
-          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style(
+            "transition",
+            `opacity ${defaultConfig.node.transitionDuration}ms`,
+          )
           .style("opacity", defaultConfig.node.highlightOpacity)
           .select("circle")
-          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
-          .style("fill", defaultConfig.node.highlightFill);
+          .style(
+            "transition",
+            `fill ${defaultConfig.node.transitionDuration}ms`,
+          )
+          .style("fill", d.active);
 
         // Show text for hovered node only
         d3.select(event.currentTarget)
@@ -352,11 +419,17 @@ class GraphVisualizer {
         // Reset all nodes
         this.zoomGroup
           .selectAll(".nodes g")
-          .style("transition", `opacity ${defaultConfig.node.transitionDuration}ms`)
+          .style(
+            "transition",
+            `opacity ${defaultConfig.node.transitionDuration}ms`,
+          )
           .style("opacity", defaultConfig.node.highlightOpacity)
           .select("circle")
-          .style("transition", `fill ${defaultConfig.node.transitionDuration}ms`)
-          .style("fill", defaultConfig.node.fill);
+          .style(
+            "transition",
+            `fill ${defaultConfig.node.transitionDuration}ms`,
+          )
+          .style("fill", (d) => d.inactive);
 
         // Hide all text
         this.zoomGroup
@@ -402,10 +475,14 @@ class GraphVisualizer {
   }
 }
 
-const ConfigSlider = ({ label, value, onChange, min, max, step }) => (
-  React.createElement("div", { className: "mb-4" },
-    React.createElement("label", { className: "block text-sm font-medium mb-2" },
-      `${label}: ${value}`
+const ConfigSlider = ({ label, value, onChange, min, max, step }) =>
+  React.createElement(
+    "div",
+    { className: "mb-4" },
+    React.createElement(
+      "label",
+      { className: "block text-sm font-medium mb-2" },
+      `${label}: ${value}`,
     ),
     React.createElement("input", {
       type: "range",
@@ -413,16 +490,15 @@ const ConfigSlider = ({ label, value, onChange, min, max, step }) => (
       max: max,
       step: step,
       value: value,
-      onChange: e => onChange(parseFloat(e.target.value)),
-      className: "w-full"
-    })
-  )
-);
+      onChange: (e) => onChange(parseFloat(e.target.value)),
+      className: "w-full",
+    }),
+  );
 
 const InteractiveGraph = () => {
   // Load config from localStorage or use default
   const loadConfig = () => {
-    const savedConfig = localStorage.getItem('graphConfig');
+    const savedConfig = localStorage.getItem("graphConfig");
     return savedConfig ? JSON.parse(savedConfig) : defaultConfig;
   };
 
@@ -442,18 +518,16 @@ const InteractiveGraph = () => {
       ...config,
       [category]: {
         ...config[category],
-        [param]: value
-      }
+        [param]: value,
+      },
     };
     setConfig(newConfig);
 
     // Save to localStorage
-    localStorage.setItem('graphConfig', JSON.stringify(newConfig));
+    localStorage.setItem("graphConfig", JSON.stringify(newConfig));
 
     if (graph) {
-      graph.simulation
-        .force("charge")
-        .strength(newConfig.forces.repelForce);
+      graph.simulation.force("charge").strength(newConfig.forces.repelForce);
 
       graph.simulation
         .force("link")
@@ -461,168 +535,197 @@ const InteractiveGraph = () => {
         .distance(newConfig.forces.linkDistance);
 
       const maxConnections = Math.max(
-        ...graph.simulation.nodes().map(node => node.connections)
+        ...graph.simulation.nodes().map((node) => node.connections),
       );
 
-      graph.simulation
-        .force("x")
-        .strength(d => {
-          const connectionStrength = d.connections / maxConnections;
-          return newConfig.forces.centerForce * (1 + connectionStrength);
-        });
+      graph.simulation.force("x").strength((d) => {
+        const connectionStrength = d.connections / maxConnections;
+        return newConfig.forces.centerForce * (1 + connectionStrength);
+      });
 
-      graph.simulation
-        .force("y")
-        .strength(d => {
-          const connectionStrength = d.connections / maxConnections;
-          return newConfig.forces.centerForce * (1 + connectionStrength);
-        });
+      graph.simulation.force("y").strength((d) => {
+        const connectionStrength = d.connections / maxConnections;
+        return newConfig.forces.centerForce * (1 + connectionStrength);
+      });
 
       graph.simulation.alpha(0.3).restart();
 
       graph.zoomGroup
         .selectAll(".nodes circle")
-        .attr("r", d =>
-          newConfig.node.baseRadius + d.connections * newConfig.node.radiusMultiplier
+        .attr(
+          "r",
+          (d) =>
+            newConfig.node.baseRadius +
+            d.connections * newConfig.node.radiusMultiplier,
         );
     }
   };
 
   // Add reset button handler
   const resetConfig = () => {
-    localStorage.removeItem('graphConfig');
+    localStorage.removeItem("graphConfig");
     setConfig(defaultConfig);
     if (graph) {
       // Apply default config to graph
-      updateConfig('forces', 'repelForce', defaultConfig.forces.repelForce);
-      updateConfig('forces', 'linkForce', defaultConfig.forces.linkForce);
-      updateConfig('forces', 'centerForce', defaultConfig.forces.centerForce);
-      updateConfig('forces', 'linkDistance', defaultConfig.forces.linkDistance);
-      updateConfig('node', 'baseRadius', defaultConfig.node.baseRadius);
-      updateConfig('node', 'radiusMultiplier', defaultConfig.node.radiusMultiplier);
+      updateConfig("forces", "repelForce", defaultConfig.forces.repelForce);
+      updateConfig("forces", "linkForce", defaultConfig.forces.linkForce);
+      updateConfig("forces", "centerForce", defaultConfig.forces.centerForce);
+      updateConfig("forces", "linkDistance", defaultConfig.forces.linkDistance);
+      updateConfig("node", "baseRadius", defaultConfig.node.baseRadius);
+      updateConfig(
+        "node",
+        "radiusMultiplier",
+        defaultConfig.node.radiusMultiplier,
+      );
     }
   };
 
   // Create a container div that will hold both the graph and controls
-  return React.createElement("div", {
-    style: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      display: 'flex'
-    }
-  },
+  return React.createElement(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: "flex",
+      },
+    },
     // Graph container
     React.createElement("div", {
       id: "graphcontainer",
       style: {
-        flex: '1',
-        position: 'relative'
-      }
+        flex: "1",
+        position: "relative",
+      },
     }),
     // Controls panel
-    React.createElement("div", {
-      style: {
-        width: '300px',
-        padding: '20px',
-        backgroundColor: 'white',
-        boxShadow: '-2px 0 5px rgba(0,0,0,0.1)',
-        overflowY: 'auto'
-      }
-    },
-      React.createElement("div", {
+    React.createElement(
+      "div",
+      {
         style: {
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1em'
-        }
+          width: "300px",
+          padding: "20px",
+          backgroundColor: "white",
+          boxShadow: "-2px 0 5px rgba(0,0,0,0.1)",
+          overflowY: "auto",
+        },
       },
-        React.createElement("h2", {
+      React.createElement(
+        "div",
+        {
           style: {
-            fontSize: '1.2em',
-            fontWeight: 'bold',
-            margin: 0
-          }
-        }, "Graph Controls"),
-        React.createElement("button", {
-          onClick: resetConfig,
-          style: {
-            padding: '5px 10px',
-            backgroundColor: '#f0f0f0',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }
-        }, "Reset")
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1em",
+          },
+        },
+        React.createElement(
+          "h2",
+          {
+            style: {
+              fontSize: "1.2em",
+              fontWeight: "bold",
+              margin: 0,
+            },
+          },
+          "Graph Controls",
+        ),
+        React.createElement(
+          "button",
+          {
+            onClick: resetConfig,
+            style: {
+              padding: "5px 10px",
+              backgroundColor: "#f0f0f0",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              cursor: "pointer",
+            },
+          },
+          "Reset",
+        ),
       ),
-      React.createElement("div", null,
-        React.createElement("h3", { style: { fontSize: '1.1em', fontWeight: '500', marginTop: '1em' } }, "Node Settings"),
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "h3",
+          { style: { fontSize: "1.1em", fontWeight: "500", marginTop: "1em" } },
+          "Node Settings",
+        ),
         React.createElement(ConfigSlider, {
           label: "Base Radius",
           value: config.node.baseRadius,
-          onChange: v => updateConfig('node', 'baseRadius', v),
+          onChange: (v) => updateConfig("node", "baseRadius", v),
           min: 1,
           max: 20,
-          step: 0.5
+          step: 0.5,
         }),
         React.createElement(ConfigSlider, {
           label: "Radius Multiplier",
           value: config.node.radiusMultiplier,
-          onChange: v => updateConfig('node', 'radiusMultiplier', v),
+          onChange: (v) => updateConfig("node", "radiusMultiplier", v),
           min: 0,
           max: 2,
-          step: 0.1
-        })
+          step: 0.1,
+        }),
       ),
-      React.createElement("div", null,
-        React.createElement("h3", { style: { fontSize: '1.1em', fontWeight: '500', marginTop: '1em' } }, "Force Settings"),
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "h3",
+          { style: { fontSize: "1.1em", fontWeight: "500", marginTop: "1em" } },
+          "Force Settings",
+        ),
         React.createElement(ConfigSlider, {
           label: "Center Force",
           value: config.forces.centerForce,
-          onChange: v => updateConfig('forces', 'centerForce', v),
+          onChange: (v) => updateConfig("forces", "centerForce", v),
           min: 0,
           max: 1,
-          step: 0.05
+          step: 0.05,
         }),
         React.createElement(ConfigSlider, {
           label: "Repel Force",
           value: config.forces.repelForce,
-          onChange: v => updateConfig('forces', 'repelForce', v),
+          onChange: (v) => updateConfig("forces", "repelForce", v),
           min: -1000,
           max: 0,
-          step: 10
+          step: 10,
         }),
         React.createElement(ConfigSlider, {
           label: "Link Force",
           value: config.forces.linkForce,
-          onChange: v => updateConfig('forces', 'linkForce', v),
+          onChange: (v) => updateConfig("forces", "linkForce", v),
           min: 0,
           max: 1,
-          step: 0.05
+          step: 0.05,
         }),
         React.createElement(ConfigSlider, {
           label: "Link Distance",
           value: config.forces.linkDistance,
-          onChange: v => updateConfig('forces', 'linkDistance', v),
+          onChange: (v) => updateConfig("forces", "linkDistance", v),
           min: 10,
           max: 200,
-          step: 5
-        })
-      )
-    )
+          step: 5,
+        }),
+      ),
+    ),
   );
 };
 
 // Create a container for the app if it doesn't exist
-if (!document.getElementById('app')) {
-  const appDiv = document.createElement('div');
-  appDiv.id = 'app';
+if (!document.getElementById("app")) {
+  const appDiv = document.createElement("div");
+  appDiv.id = "app";
   document.body.appendChild(appDiv);
 }
 
 // Render the component
-const root = ReactDOM.createRoot(document.getElementById('app'));
+const root = ReactDOM.createRoot(document.getElementById("app"));
 root.render(React.createElement(InteractiveGraph));
